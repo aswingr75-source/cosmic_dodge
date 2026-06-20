@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Dodge - Gesture Spaceship Game</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.3/dist/teachablemachine-image.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Header Section -->
+        <header>
+            <div class="header-logo">
+                <span class="neon-text">COSMIC</span>
+                <span class="neon-text-magenta">DODGE</span>
+            </div>
+            <div class="header-controls">
+                <button id="sound-btn" class="icon-btn" title="Toggle Sound">
+                    <svg id="sound-icon" viewBox="0 0 24 24" width="24" height="24">
+                        <!-- Sound On Icon Path (default) -->
+                        <path fill="var(--color-primary)" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                    </svg>
+                </button>
+                <button id="help-btn" class="icon-btn" title="How to Play">?</button>
+            </div>
+        </header>
+
+        <!-- Main Body Grid Layout -->
+        <main class="grid-container">
+            <!-- Left Panel: Game Screen -->
+            <section class="game-panel">
+                <div id="game-wrapper">
+                    <canvas id="game-canvas" width="800" height="600"></canvas>
+                    
+                    <!-- HUD overlay on top of Canvas -->
+                    <div id="hud" class="hud-layer hidden">
+                        <div class="hud-top">
+                            <div class="hud-stats-left" style="display: flex; flex-direction: column; gap: 8px;">
+                                <div class="hud-stat">
+                                    <span class="hud-label">SCORE</span>
+                                    <span id="hud-score" class="hud-value">000000</span>
+                                </div>
+                                <div class="hud-stat">
+                                    <span class="hud-label">HIGH SCORE</span>
+                                    <span id="hud-highscore" class="hud-value">000000</span>
+                                </div>
+                                <div class="hud-stat">
+                                    <span class="hud-label">LEVEL</span>
+                                    <span id="hud-level" class="hud-value">1</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="hud-bottom">
+                            <div class="hud-gauge-container">
+                                <div class="hud-gauge-header">
+                                    <span>HULL INTEGRITY</span>
+                                    <span id="hull-pct">100%</span>
+                                </div>
+                                <div class="hud-gauge-bar-bg">
+                                    <div id="hull-bar" class="hud-gauge-bar-fill green-glow" style="width: 100%;"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="hud-gauge-container">
+                                <div class="hud-gauge-header">
+                                    <span>SHIELD CHARGE</span>
+                                    <span id="shield-pct">100%</span>
+                                </div>
+                                <div class="hud-gauge-bar-bg">
+                                    <div id="shield-bar" class="hud-gauge-bar-fill blue-glow" style="width: 100%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Screen Overlays (Start, Game Over, Pause) -->
+                    <div id="screen-overlay" class="screen-overlay-active">
+                        <!-- Start Screen -->
+                        <div id="start-screen" class="overlay-content">
+                            <h1 class="logo-large">COSMIC <span class="magenta">DODGE</span></h1>
+                            <p class="tagline">Command your starship through the asteroid storm using hand gestures.</p>
+                            
+                            <div class="launch-instructions glass-panel" style="margin-bottom: 25px; padding: 15px; border: 1px solid var(--color-primary); border-radius: 8px; text-align: left; max-width: 400px; background: rgba(0, 240, 255, 0.04); box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);">
+                                <h4 style="font-family: var(--font-game); color: var(--color-primary); margin-bottom: 8px; font-size: 0.85rem; letter-spacing: 1.5px; text-shadow: 0 0 5px rgba(0,240,255,0.4);">MISSION PROTOCOL:</h4>
+                                <ol style="margin-left: 20px; font-size: 0.8rem; color: var(--color-text-dim); line-height: 1.6; font-family: var(--font-ui);">
+                                    <li style="margin-bottom: 6px;"><strong>Allow the webcam</strong> to play the game.</li>
+                                    <li>Use your <strong>right hand</strong> to control the spaceship.</li>
+                                </ol>
+                            </div>
+
+                            <div class="start-controls">
+                                <button id="play-btn" class="btn primary-btn btn-glow">LAUNCH MISSION</button>
+                            </div>
+                            
+                            <div class="control-fallback-tip">
+                                <span>Note: Works with Keyboard <b>(← / →)</b>, <b>Space</b> to shoot, <b>S</b> for shield if webcam is disabled.</span>
+                            </div>
+                        </div>
+
+                        <!-- Game Over Screen -->
+                        <div id="game-over-screen" class="overlay-content hidden">
+                            <h2 class="title-large magenta-glow">MISSION FAILED</h2>
+                            <p class="summary-text">Your spaceship was obliterated in the asteroid belt.</p>
+                            
+                            <div class="final-stats">
+                                <div class="stat-box">
+                                    <span class="box-label">FINAL SCORE</span>
+                                    <span id="final-score" class="box-val">0</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="box-label">LEVEL REACHED</span>
+                                    <span id="final-level" class="box-val">1</span>
+                                </div>
+                            </div>
+                            
+                            <button id="restart-btn" class="btn primary-btn btn-glow">RELAUNCH MISSION</button>
+                        </div>
+
+                        <!-- Pause Screen -->
+                        <div id="pause-screen" class="overlay-content hidden">
+                            <h2 class="title-large">MISSION PAUSED</h2>
+                            <p class="summary-text">System is temporarily locked.</p>
+                            <button id="resume-btn" class="btn primary-btn">RESUME MISSION</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Controls & Webcam Setup -->
+            <aside class="control-panel glass-panel">
+                <!-- Webcam Feed Container -->
+                <div class="panel-section webcam-section">
+                    <h3>WEBCAM CONTROLLER</h3>
+                    <div class="webcam-viewport-container">
+                        <div class="webcam-ring border-glow">
+                            <video id="fallback-video" style="display:none;" autoplay playsinline></video>
+                            <div id="webcam-container">
+                                <!-- Teachable Machine Canvas injected here -->
+                                <div class="webcam-placeholder">
+                                    <svg viewBox="0 0 24 24" width="48" height="48" fill="var(--color-text-dim)">
+                                        <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4zM14 16H5V8h9v8z"/>
+                                    </svg>
+                                    <span>Webcam Offline</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="webcam-status-bar">
+                            <span class="status-indicator" id="webcam-status-indicator"></span>
+                            <span id="webcam-status-text">DISCONNECTED</span>
+                        </div>
+                    </div>
+                    <div class="webcam-controls" style="margin-top: 15px;">
+                        <button id="init-webcam-btn" class="btn primary-btn w-100" disabled>LOADING MODEL...</button>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Help Modal (Light Box Overlay) -->
+        <div id="help-modal" class="modal-overlay hidden">
+            <div class="modal-content glass-panel">
+                <div class="modal-header">
+                    <h2>How to Setup & Play</h2>
+                    <button id="close-help-btn" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <h3>1. Keyboard Fallback (Quick Play)</h3>
+                    <p>No webcam? No problem! Use standard keyboard controls:</p>
+                    <ul>
+                        <li><strong>Left / Right Arrow</strong> (or A / D): Move Spaceship</li>
+                        <li><strong>Spacebar</strong>: Shoot Lasers</li>
+                        <li><strong>S Key</strong>: Activate Deflector Shield</li>
+                        <li><strong>P Key</strong>: Pause Mission</li>
+                    </ul>
+
+                    <h3>2. Neural Gesture Controls</h3>
+                    <p>This mission uses a preloaded Teachable Machine model trained with hand positions:</p>
+                    <ul>
+                        <li><strong>Left</strong>: Tilt or move your hand to the left to steer left.</li>
+                        <li><strong>Right</strong>: Tilt or move your hand to the right to steer right.</li>
+                        <li><strong>Middle</strong>: Keep your hand in the center to maintain course.</li>
+                    </ul>
+                    <p>Simply click <strong>ENABLE WEBCAM</strong> on the panel to turn on gesture tracking.</p>
+
+                    <h3>3. Game Mechanics</h3>
+                    <ul>
+                        <li>Shoot meteors to gain points. Larger meteors split into smaller, faster ones.</li>
+                        <li>Dodge meteors to protect your hull integrity.</li>
+                        <li>Collect powerups: <strong>Shield</strong> (invulnerability), <strong>Double Shot</strong> (extra damage), and <strong>Repairs</strong> (+25% hull).</li>
+                        <li>Deflector Shield drains over time but charges back up slowly.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Scripts -->
+    <script src="audio.js"></script>
+    <script src="model-loader.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
